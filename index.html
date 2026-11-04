@@ -1,0 +1,149 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default"><meta name="apple-mobile-web-app-title" content="Sprout">
+<title>Sprout</title>
+<style>
+:root{--bg:#f6efe3;--card:#fffaf0;--ink:#2f2a25;--mut:#8a7f72;--line:#e6dac6;--sage:#6f9a62;--terra:#d4623b;--butter:#f1c65b;--sky:#5f9fb2}
+@media(prefers-color-scheme:dark){:root{--bg:#1c1a17;--card:#27231f;--ink:#f3eadb;--mut:#a09483;--line:#3a342d;--sage:#8fba80;--terra:#ee8460;--sky:#86c1d3}}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 -apple-system,system-ui,sans-serif}
+body{padding:calc(env(safe-area-inset-top,0px) + 14px) 16px calc(env(safe-area-inset-bottom,0px) + 100px);max-width:560px;margin:auto}
+h1,h2,h3,.big{font-family:ui-serif,"New York",Georgia,serif;margin:0}
+h1{font-size:30px;letter-spacing:-.5px}h2{font-size:21px;margin:22px 0 8px}h3{font-size:17px}
+.mut{color:var(--mut)}.sm{font-size:13px}.c{text-align:center}
+.card{background:var(--card);border:1.5px solid var(--line);border-radius:20px;padding:16px;margin:12px 0;box-shadow:0 2px 0 var(--line)}
+.stitch{border:2px dashed var(--line);background:transparent;box-shadow:none}
+.row{display:flex;align-items:center;gap:10px}.sp{justify-content:space-between}.g{flex:1}
+button{font:inherit;color:inherit;border:0;background:none;padding:0}
+.btn{background:var(--ink);color:var(--bg);border-radius:14px;padding:11px 16px;font-weight:600}
+.btn.soft{background:var(--line);color:var(--ink)}.btn.terra{background:var(--terra);color:#fff}
+.pill{border:1.5px solid var(--line);border-radius:99px;padding:6px 12px;font-size:14px}.pill.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+input,select,textarea{font:inherit;width:100%;padding:11px 12px;border-radius:12px;border:1.5px solid var(--line);background:var(--bg);color:var(--ink)}
+label{display:block;font-size:13px;color:var(--mut);margin:12px 0 4px}
+.tabs{position:fixed;left:0;right:0;bottom:0;display:flex;background:var(--card);border-top:1.5px solid var(--line);padding:6px 10px calc(env(safe-area-inset-bottom,0px) + 6px);justify-content:space-around}
+.tabs button{display:flex;flex-direction:column;align-items:center;font-size:11px;color:var(--mut);padding:4px 14px;border-radius:12px}
+.tabs button span{font-size:22px;filter:grayscale(1);opacity:.6}.tabs .on{color:var(--ink);font-weight:700}.tabs .on span{filter:none;opacity:1}
+.ent{padding:9px 0;border-top:1px dashed var(--line)}.ent:first-of-type{border-top:0}
+.x{color:var(--mut);font-size:20px;padding:0 6px}
+.glass{font-size:26px;opacity:.25;filter:grayscale(1);padding:2px}.glass.on{opacity:1;filter:none}
+#sheet{position:fixed;inset:0;background:rgba(30,24,16,.45);display:none;align-items:flex-end;z-index:9}
+#sheet>div{background:var(--bg);width:100%;max-width:560px;margin:auto;max-height:88%;overflow:auto;border-radius:24px 24px 0 0;padding:16px 16px calc(env(safe-area-inset-bottom,0px)+20px)}
+#toast{position:fixed;top:calc(env(safe-area-inset-top,0px) + 10px);left:50%;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:99px;font-size:14px;opacity:0;transition:.25s;z-index:20;pointer-events:none}
+#toast.on{opacity:1}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.stat{background:var(--bg);border-radius:14px;padding:10px 12px}.stat b{display:block;font-size:20px;font-family:ui-serif,Georgia,serif}
+.bar{height:8px;border-radius:9px;background:var(--line);overflow:hidden}.bar i{display:block;height:100%;background:var(--sage)}
+</style></head><body>
+<div id="app"></div><div id="sheet"></div><div id="toast"></div>
+<nav class="tabs"><button data-a="tab" data-t="today"><span>🌱</span>Today</button><button data-a="tab" data-t="eat"><span>🍳</span>Eat next</button><button data-a="tab" data-t="prog"><span>📈</span>Progress</button><button data-a="tab" data-t="me"><span>🧺</span>Me</button></nav>
+<script>
+const $=s=>document.querySelector(s),sum=a=>a.reduce((x,y)=>x+y,0),KEY='sprout.v1';
+let S;try{S=JSON.parse(localStorage.getItem(KEY))}catch(e){}S=S||{p:null,days:{},wt:{},cust:[]};
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){toast('Couldn’t save — storage is full or blocked')}};
+const dk=d=>{d=d||new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
+const dd=s=>new Date(s+'T12:00'),addD=(s,n)=>{const d=dd(s);d.setDate(d.getDate()+n);return dk(d)};
+const fmtD=s=>dd(s).toLocaleDateString(undefined,{month:'short',day:'numeric'});
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let cur=dk(),tab='today',editing=false,ob={s:'f',u:'imp'},sheet=null,qty=1,q='',IC={};
+const toast=t=>{const e=$('#toast');e.textContent=t;e.classList.add('on');clearTimeout(toast.t);toast.t=setTimeout(()=>e.classList.remove('on'),1800)};
+// food data: emoji,name,serving,kcal,protein,type(p/c/v/f),meals(b,l,d,s). Approximate USDA-style values.
+const F=[['🥚','Eggs','2 large',144,12,'p','b'],['🥣','Greek yogurt, nonfat','1 cup',130,23,'p','bs'],['🍗','Chicken breast','4 oz cooked',187,35,'p','ld'],['🐟','Salmon','5 oz cooked',290,31,'p','d'],['🥫','Tuna pouch','1 pouch',70,16,'p','ls'],['🥩','Lean ground beef 93%','4 oz cooked',220,26,'p','d'],['🍤','Shrimp','4 oz',112,23,'p','ld'],['🧀','Cottage cheese, low-fat','½ cup',90,12,'p','bs'],['🥛','Whey protein','1 scoop',120,24,'p','bs'],['🦃','Turkey slices','3 oz',90,15,'p','l'],['🧈','Tofu, firm','4 oz',90,10,'p','ld'],['🧀','String cheese','1 stick',80,7,'p','s'],
+['🥣','Oatmeal','½ cup dry',150,5,'c','b'],['🍞','Whole-wheat toast','1 slice',80,4,'c','bl'],['🍚','Brown rice','1 cup cooked',215,5,'c','ld'],['🍝','Whole-wheat pasta','1 cup cooked',175,7,'c','d'],['🥔','Baked potato','medium',160,4,'c','ld'],['🍠','Sweet potato','medium',110,2,'c','d'],['🌯','Whole-wheat tortilla','1 large',120,4,'c','l'],['🫘','Black beans','½ cup',110,7,'c','ld'],
+['🍌','Banana','1 medium',105,1,'f','bs'],['🍎','Apple','1 medium',95,0.5,'f','s'],['🫐','Blueberries','1 cup',85,1,'f','bs'],['🍓','Strawberries','1 cup',50,1,'f','bs'],['🍊','Orange','1 medium',62,1,'f','s'],
+['🥦','Broccoli','1 cup',55,4,'v','ld'],['🥗','Big salad, light dressing','1 bowl',120,3,'v','ld'],['🥕','Carrots + hummus','1 cup + 2 tbsp',130,4,'v','s'],['🫑','Roasted veggies','1 cup',80,2,'v','d'],
+['🥑','Avocado','½',120,1.5,'f','bl'],['🥜','Almonds','1 oz',165,6,'f','s'],['🥜','Peanut butter','1 tbsp',95,4,'f','bs'],['🫒','Olive oil','1 tsp',40,0,'f','ld'],['🍿','Air-popped popcorn','3 cups',95,3,'c','s'],['🍫','Dark chocolate','2 squares',115,1.5,'f','s'],
+['☕','Black coffee','1 cup',5,0,'f','b'],['🥤','Latte, 2% milk','12 oz',150,10,'f','b'],['🍕','Pizza slice','1 large',285,12,'c','d'],['🍔','Cheeseburger, fast food','1',300,15,'c','ld'],['🍺','Beer','12 oz',150,1.5,'f','d'],['🍷','Wine','5 oz',125,0,'f','d']].map(([e,n,s,k,p,t,m],i)=>({id:'f'+i,e,n,s,k,p,t,m}));
+const food=id=>id[0]=='c'?S.cust[+id.slice(1)]:F[+id.slice(1)];
+const MEALS=[['b','Breakfast','🍳'],['l','Lunch','🥪'],['d','Dinner','🍝'],['s','Snacks','🍎']];
+const SL=[['b','Breakfast',8,.25],['l','Lunch',12.5,.3],['s','Afternoon snack',16,.1],['d','Dinner',19,.35]];
+// ---- numbers
+const day=d=>S.days[d]||(S.days[d]={e:[],w:0});
+const ents=d=>(S.days[d]&&S.days[d].e)||[],eaten=d=>sum(ents(d).map(x=>x.k)),prot=d=>sum(ents(d).map(x=>x.p||0));
+const U=()=>S.p.u=='imp'?'lb':'kg',cv=k=>S.p.u=='imp'?k*2.20462:k,fw=k=>cv(k).toFixed(1);
+function trend(){const w=Object.entries(S.wt).sort();if(!w.length)return[];let t=w[0][1];return w.map(([d,v])=>{t+=(v-t)*.3;return[d,v,t]})}
+function slope(){const w=Object.entries(S.wt).filter(([d])=>(dd(dk())-dd(d))/864e5<=14);if(w.length<4)return null;const x=w.map(([d])=>dd(d)/864e5),y=w.map(a=>a[1]);if(Math.max(...x)-Math.min(...x)<7)return null;const n=x.length,mx=sum(x)/n,my=sum(y)/n;let a=0,b=0;x.forEach((v,i)=>{a+=(v-mx)*(y[i]-my);b+=(v-mx)**2});return a/b*7}
+function pl(){const p=S.p,T=trend(),w=T.length?T[T.length-1][2]:p.w;const bmr=10*w+6.25*p.h-5*p.a+(p.s=='m'?5:-161),tdee=bmr*p.act,losing=p.gw<w-.3;
+let def=losing?Math.min(p.rate*7700/7,tdee*.25):0,t=tdee-def+(p.adj||0),fl=p.s=='m'?1500:1200,capped=t<fl;t=Math.round(Math.max(t,fl)/10)*10;
+const pt=Math.round(Math.min(w*1.8,t*.35/4));return{w,bmr,tdee,def,t,fl,capped,losing,pt,fat:Math.round(t*.28/9),fib:Math.round(t/1000*14)}}
+function streak(){let n=0,d=dk();if(!ents(d).length)d=addD(d,-1);while(ents(d).length){n++;d=addD(d,-1)}return n}
+// ---- views
+function vOnb(){const p=S.p||{},imp=ob.u=='imp',v=(a,b)=>p[a]!=null?b:'',h=p.h?p.h/2.54:0;
+return`<h1>Hi, I’m Sprout 🌱</h1><p class="mut">A quiet little diary for eating a bit less than you burn. Everything stays on this phone.</p>
+<div class="card"><label>What should I call you?</label><input id="nm" value="${esc(p.name||'')}" placeholder="Your name">
+<label>Units</label><div class="row"><button class="pill ${imp?'on':''}" data-a="ou" data-v="imp">lb · ft/in</button><button class="pill ${imp?'':'on'}" data-a="ou" data-v="met">kg · cm</button></div>
+<label>Sex (for the metabolism formula)</label><div class="row"><button class="pill ${ob.s=='f'?'on':''}" data-a="os" data-v="f">Female</button><button class="pill ${ob.s=='m'?'on':''}" data-a="os" data-v="m">Male</button></div>
+<label>Age</label><input id="age" type="number" inputmode="numeric" value="${p.a||''}">
+<label>Height</label>${imp?`<div class="row"><input id="ft" type="number" inputmode="numeric" placeholder="ft" value="${p.h?Math.floor(h/12):''}"><input id="in" type="number" inputmode="decimal" placeholder="in" value="${p.h?Math.round(h%12):''}"></div>`:`<input id="cm" type="number" inputmode="decimal" placeholder="cm" value="${p.h?Math.round(p.h):''}">`}
+<label>Current weight (${imp?'lb':'kg'})</label><input id="w" type="number" inputmode="decimal" value="${p.w?(imp?p.w*2.20462:p.w).toFixed(1):''}">
+<label>Goal weight (${imp?'lb':'kg'})</label><input id="gw" type="number" inputmode="decimal" value="${p.gw?(imp?p.gw*2.20462:p.gw).toFixed(1):''}">
+<label>How active are you, honestly?</label><select id="ac">${[[1.2,'Mostly sitting'],[1.375,'Light — walks, 1–3 workouts/wk'],[1.55,'Moderate — 3–5 workouts/wk'],[1.725,'Very — hard training most days']].map(a=>`<option value="${a[0]}" ${p.act==a[0]?'selected':''}>${a[1]}</option>`).join('')}</select>
+<label>Pace</label><select id="rt">${[[.25,'Gentle — ~0.5 lb/wk'],[.45,'Steady — ~1 lb/wk'],[.7,'Brisk — ~1.5 lb/wk']].map(a=>`<option value="${a[0]}" ${p.rate==a[0]||(!p.rate&&a[0]==.45)?'selected':''}>${a[1]}</option>`).join('')}</select></div>
+<button class="btn g" style="width:100%" data-a="start">${S.p?'Save changes':'Let’s grow something'}</button><p class="sm mut c">Built for adults. Not medical advice — check with a clinician if you have a health condition.</p>`}
+function vToday(){const P=pl(),E=eaten(cur),R=P.t-E,pr=prot(cur),isT=cur==dk(),pct=E/P.t,C=2*Math.PI*72,hr=new Date().getHours();
+const msg=!E?(isT?(hr<11?'Fresh page. What’s for breakfast?':hr<16?'Blank page so far — lunch is a good place to start.':'Nothing logged yet. Even rough guesses count.'):'Nothing logged this day.'):R>P.t*.5?'Plenty of room. Fuel up, don’t skimp.':R>150?`Cruising nicely — ${R} left to play with.`:R>=-60?'Right on the money. That’s a good day.':'A bit over, and that’s fine. One day never decides anything.';
+const sp=!E?'🌱':pct<.55?'🌿':pct<=1.05?'🌼':'🍂',d=day(cur),w=S.wt[cur],nm=S.p.name?', '+esc(S.p.name):'';
+return`<div class="row sp"><button class="x" data-a="nav" data-v="-1">‹</button><div class="c"><h1>${isT?'Today':fmtD(cur)}</h1>${isT?`<div class="sm mut">${hr<12?'Morning':hr<18?'Afternoon':'Evening'}${nm}</div>`:''}</div><button class="x" data-a="nav" data-v="1" ${isT?'disabled style="opacity:.2"':''}>›</button></div>
+<div class="card c"><svg viewBox="0 0 180 180" width="210"><circle cx="90" cy="90" r="72" fill="none" stroke="var(--line)" stroke-width="14"/><circle cx="90" cy="90" r="72" fill="none" stroke="${pct>1.05?'var(--terra)':'var(--sage)'}" stroke-width="14" stroke-linecap="round" stroke-dasharray="${Math.min(pct,1)*C} ${C}" transform="rotate(-90 90 90)"/><text x="90" y="62" text-anchor="middle" font-size="26">${sp}</text><text x="90" y="100" text-anchor="middle" font-size="38" font-family="ui-serif,Georgia,serif" fill="var(--ink)" font-weight="700">${Math.abs(R)}</text><text x="90" y="120" text-anchor="middle" font-size="13" fill="var(--mut)">${R>=0?'kcal left':'kcal over'}</text></svg>
+<p style="margin:0 0 12px">${msg}</p><div class="grid"><div class="stat"><span class="sm mut">Eaten / goal</span><b>${E} / ${P.t}</b></div><div class="stat"><span class="sm mut">Protein</span><b>${Math.round(pr)} / ${P.pt} g</b><div class="bar"><i style="width:${Math.min(100,pr/P.pt*100)}%"></i></div></div></div></div>
+${MEALS.map(([m,n,e])=>{const L=ents(cur).filter(x=>x.m==m);return`<div class="card"><div class="row sp"><h3>${e} ${n}</h3><span class="mut sm">${sum(L.map(x=>x.k))||''}</span></div>${L.map(x=>`<div class="ent row"><span>${x.e||'•'}</span><span class="g">${esc(x.n)}${x.q&&x.q!=1?` <span class="mut sm">×${x.q}</span>`:''}</span><span class="mut">${x.k}</span><button class="x" data-a="del" data-id="${x.id}">×</button></div>`).join('')}<button class="pill" style="margin-top:8px" data-a="open" data-m="${m}">＋ Add</button></div>`}).join('')}
+<div class="card"><div class="row sp"><h3>💧 Water</h3><span class="sm mut">${d.w} of 8</span></div><div class="row" style="justify-content:space-between;margin-top:6px">${[...Array(8)].map((_,i)=>`<button class="glass ${i<d.w?'on':''}" data-a="water" data-i="${i}">🥛</button>`).join('')}</div></div>
+<div class="card stitch"><h3>⚖️ Weigh-in</h3><p class="sm mut" style="margin:4px 0 8px">${w?`Logged: ${fw(w)} ${U()}. Same time, same scale, ideally first thing.`:'Morning, after the bathroom, before breakfast is the most honest reading.'}</p><div class="row"><input id="wi" type="number" inputmode="decimal" placeholder="${U()}" style="max-width:130px"><button class="btn" data-a="wsave">Save</button></div></div>`}
+function ideas(m,B,n){const seed=+cur.replace(/-/g,'')%97,P=F.filter(f=>f.t=='p'&&f.m.includes(m)&&f.k<=B*.75),out=[];if(B<70)return[];
+if(!P.length){const s=F.filter(f=>f.m.includes(m)&&f.k<=B).sort((a,b)=>b.k-a.k);return s.slice(0,n).map(f=>[f])}
+for(let i=0;i<n;i++){const it=[P[(seed+i*2)%P.length]];let k=it[0].k;for(let j=0;j<2;j++){const left=B-k,used=it.map(x=>x.t),c=F.filter(f=>'cvf'.includes(f.t)&&f.m.includes(m)&&f.k<=left&&!used.includes(f.t)&&f.k>=40).sort((a,b)=>Math.abs(left*.6-a.k)-Math.abs(left*.6-b.k));if(c.length){const x=c[(i+j)%Math.min(2,c.length)];it.push(x);k+=x.k}}out.push(it)}return out}
+function vEat(){const P=pl(),E=eaten(cur),R=P.t-E;if(cur!=dk())return`<h1>Eat next</h1><div class="card">I only plan for today. Tap “Today” and come back.</div>`;
+const now=new Date().getHours()+new Date().getMinutes()/60,has=m=>ents(cur).some(x=>x.m==m);let pend=SL.filter(s=>!has(s[0])&&s[2]+2>now);
+if(!pend.length&&R>=80)pend=[['s','Evening bite',Math.max(now,19),1]];
+const sh=sum(pend.map(s=>s[3])),pg=Math.max(0,Math.round(P.pt-prot(cur)));IC={};
+const head=R<=0?`<div class="card">You’re at your number. Water, tea, a good night’s sleep — that’s the whole plan. 🌙</div>`:`<div class="card"><b>${R} kcal</b> and <b>${pg} g protein</b> still to find today. Lead each meal with the protein, then fill in around it. Spreading protein over a few meals tends to work better than one big hit.</div>`;
+return`<h1>Eat next</h1><p class="mut sm">Budgets split what’s left across the meals you haven’t had yet.</p>${head}`+(R>0?pend.map((s,si)=>{const B=Math.round(R*s[3]/sh/10)*10,t=s[2],hh=Math.floor(t),mm=t%1?'30':'00',lab=`${(hh+11)%12+1}:${mm} ${hh<12?'am':'pm'}`,idea=ideas(s[0],B,si?1:3);IC[s[0]]=idea;
+return`<h2>${s[1]} <span class="sm mut" style="font-family:-apple-system,sans-serif">· around ${lab}</span></h2><div class="card stitch"><div class="mut sm">Aim for about <b style="color:var(--ink)">${B} kcal</b></div></div>${idea.length?idea.map((it,i)=>`<div class="card"><div class="row sp"><div>${it.map(f=>`<div>${f.e} ${f.n} <span class="sm mut">· ${f.s}</span></div>`).join('')}<div class="sm mut" style="margin-top:4px">${sum(it.map(f=>f.k))} kcal · ${Math.round(sum(it.map(f=>f.p)))} g protein</div></div><button class="btn soft" data-a="log" data-s="${s[0]}" data-i="${i}">Log</button></div></div>`).join(''):'<div class="card">Not much room — a tea or some fruit will do.</div>'}`}).join(''):'')}
+function line(pts,goal){const W=320,H=170,pad=26;if(!pts.length)return'';const ys=pts.flatMap(p=>[cv(p[1]),cv(p[2])]).concat(cv(goal)),lo=Math.min(...ys)-1,hi=Math.max(...ys)+1,x0=dd(pts[0][0]).getTime(),x1=Math.max(dd(dk()).getTime(),x0+6048e5),X=d=>pad+(dd(d).getTime()-x0)/(x1-x0)*(W-pad-8),Y=v=>8+(hi-v)/(hi-lo)*(H-30);
+return`<svg viewBox="0 0 ${W} ${H}" width="100%"><line x1="${pad}" x2="${W-8}" y1="${Y(cv(goal))}" y2="${Y(cv(goal))}" stroke="var(--sage)" stroke-dasharray="4 4"/><text x="${pad+2}" y="${Y(cv(goal))-4}" font-size="10" fill="var(--sage)">goal ${fw(goal)}</text><path d="${pts.map((p,i)=>(i?'L':'M')+X(p[0])+' '+Y(cv(p[2]))).join('')}" fill="none" stroke="var(--terra)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>${pts.map(p=>`<circle cx="${X(p[0])}" cy="${Y(cv(p[1]))}" r="3" fill="var(--mut)" opacity=".6"/>`).join('')}<text x="${pad}" y="${H-4}" font-size="10" fill="var(--mut)">${fmtD(pts[0][0])}</text><text x="${W-8}" y="${H-4}" text-anchor="end" font-size="10" fill="var(--mut)">today</text><text x="2" y="${Y(hi-1)+4}" font-size="10" fill="var(--mut)">${Math.round(hi-1)}</text><text x="2" y="${Y(lo+1)+4}" font-size="10" fill="var(--mut)">${Math.round(lo+1)}</text></svg>`}
+function vProg(){const P=pl(),T=trend(),sl=slope(),last=T[T.length-1],days=[...Array(7)].map((_,i)=>addD(dk(),i-6)),mx=P.t*1.4,logged=days.filter(d=>ents(d).length);
+const bars=`<svg viewBox="0 0 320 120" width="100%">${days.map((d,i)=>{const e=eaten(d),h=e/mx*90;return`<rect x="${i*45+10}" y="${100-h}" width="28" height="${h}" rx="7" fill="${e>P.t*1.05?'var(--terra)':'var(--sage)'}" opacity="${e?1:.15}"/><text x="${i*45+24}" y="115" font-size="10" text-anchor="middle" fill="var(--mut)">${dd(d).toLocaleDateString(undefined,{weekday:'narrow'})}</text>`}).join('')}<line x1="0" x2="320" y1="${100-P.t/mx*90}" y2="${100-P.t/mx*90}" stroke="var(--ink)" stroke-dasharray="3 4" opacity=".5"/></svg>`;
+let ins,btn='';if(T.length<4||sl==null)ins='Weigh in a few mornings a week and I’ll start reading your trend. One reading is mostly water and noise.';else{const act=-sl,ex=P.losing?S.p.rate:0,l14=[...Array(14)].filter((_,i)=>ents(addD(dk(),-i)).length).length;
+if(P.losing&&act<ex*.5&&l14>=10){ins=`Your trend is moving ${Math.max(0,act*2.2).toFixed(1)} lb/wk vs the ~${(ex*2.2).toFixed(1)} the maths predicted. That’s normal — metabolism adapts and portions drift. If your logging feels honest, trim a little.`;btn=`<button class="btn terra" data-a="adj" data-v="-100">Lower target by 100</button>`}
+else if(P.losing&&act>ex*1.6&&act>S.p.w*.01){ins='You’re dropping faster than planned. Faster loss costs more muscle — eat a touch more and keep protein up.';btn=`<button class="btn terra" data-a="adj" data-v="100">Raise target by 100</button>`}else ins='You’re tracking right around plan. Don’t fiddle with it.'}
+const to=last?last[2]-S.p.gw:0,wk=to/S.p.rate,eta=w=>dd(dk()).setDate(dd(dk()).getDate()+w*7)&&new Date(dd(dk()).getTime()+w*6048e5).toLocaleDateString(undefined,{month:'short',year:'numeric'});
+return`<h1>Progress</h1><div class="card"><h3>Weight</h3><p class="sm mut" style="margin:2px 0">Dots are weigh-ins, the line is your smoothed trend.</p>${T.length>1?line(T,S.p.gw):'<p class="mut">Log a couple of weigh-ins on the Today tab to see your line.</p>'}</div>
+<div class="grid"><div class="stat"><span class="sm mut">Trend now</span><b>${last?fw(last[2]):'—'} ${U()}</b></div><div class="stat"><span class="sm mut">To goal</span><b>${last&&to>0?fw(to).replace(/^-/,''):'🎉'} ${to>0?U():''}</b></div><div class="stat"><span class="sm mut">Pace</span><b>${sl==null?'—':(sl>0?'+':'−')+Math.abs(cv(sl)).toFixed(1)+' '+U()+'/wk'}</b></div><div class="stat"><span class="sm mut">Logging streak</span><b>${streak()} 🔥</b></div></div>
+${last&&to>0&&P.losing?`<div class="card stitch sm">Rough arrival: <b>${eta(wk*1.0)}</b> to <b>${eta(wk/.6)}</b>. It’s a range on purpose — weight loss slows as you get smaller, so straight-line maths runs optimistic.</div>`:''}
+<div class="card"><h3>Last 7 days</h3>${bars}<p class="sm mut" style="margin:0">Dashed line is your goal. ${logged.length?`You’ve averaged ${Math.round(sum(logged.map(eaten))/logged.length)} kcal on ${logged.length} logged days.`:''}</p></div>
+<div class="card"><h3>🌤️ Reading the trend</h3><p>${ins}</p>${btn}</div>`}
+function vMe(){const P=pl(),p=S.p;return`<h1>Me</h1><div class="card"><h3>How your number was built</h3><div class="row sp ent"><span>Resting burn (BMR)</span><b>${Math.round(P.bmr)}</b></div><div class="row sp ent"><span>With daily movement (×${p.act})</span><b>${Math.round(P.tdee)}</b></div><div class="row sp ent"><span>Planned deficit</span><b>−${Math.round(P.def)}</b></div>${p.adj?`<div class="row sp ent"><span>Your adjustment</span><b>${p.adj>0?'+':''}${p.adj}</b></div>`:''}<div class="row sp ent"><span><b>Daily target</b></span><b>${P.t}</b></div>${P.capped?`<p class="sm mut">Held at ${P.fl} kcal — going lower than that without medical supervision isn’t something I’ll plan for you.</p>`:''}<p class="sm mut">Soft guides: protein ~${P.pt} g, fat ~${P.fat} g, fibre ~${P.fib} g.</p></div>
+<div class="card"><div class="row sp"><span>Units</span><div class="row"><button class="pill ${p.u=='imp'?'on':''}" data-a="units" data-v="imp">lb</button><button class="pill ${p.u=='imp'?'':'on'}" data-a="units" data-v="met">kg</button></div></div><button class="btn soft" style="margin-top:12px" data-a="edit">Edit my details</button></div>
+<div class="card"><h3>🧺 Backup</h3><p class="sm mut">Your data lives only in this app. Copy a backup now and then and keep it in Notes.</p><textarea id="bk" rows="3" placeholder="Backup text goes here"></textarea><div class="row" style="margin-top:8px"><button class="btn" data-a="export">Copy backup</button><button class="btn soft" data-a="import">Restore</button></div></div>
+<div class="card"><h3>📚 Where the numbers come from</h3><p class="sm mut">Resting burn: Mifflin–St Jeor, found the most reliable of the common equations in Frankenfield et al., J Am Diet Assoc 2005 (still ±10%, so treat it as a starting point). The ‘3,500 kcal = 1 lb’ rule overestimates real loss: Hall et al., Lancet 2011 (NIDDK Body Weight Planner) and Thomas et al., Int J Obes 2013 — which is why I use your actual weight trend to adjust, and show ETAs as a range. Protein ~1.8 g/kg sits inside the 1.6–2.2 g/kg range from Morton et al., Br J Sports Med 2018. Food values are typical averages, not lab-exact.</p></div>
+<button class="pill" data-a="reset" style="margin-top:8px">Erase everything</button><p class="sm mut c">Sprout · made just for you 🌱</p>`}
+function vSheet(){const L=[...S.cust.map((c,i)=>({...c,id:'c'+i,e:'⭐'})),...F].filter(f=>!q||(f.n+f.s).toLowerCase().includes(q.toLowerCase())).sort((a,b)=>(b.m.includes(sheet.m)-a.m.includes(sheet.m)));
+return`<div><div class="row sp"><h3>Add to ${MEALS.find(x=>x[0]==sheet.m)[1]}</h3><button class="btn soft" data-a="close">Done</button></div><div class="row" style="margin:10px 0"><input id="q" placeholder="Search foods…" value="${esc(q)}" autocomplete="off"><span class="row"><button class="pill" data-a="qty" data-v="-.5">−</button><b id="qv">×${qty}</b><button class="pill" data-a="qty" data-v=".5">＋</button></span></div><div id="fl">${fl(L)}</div>
+<div class="card stitch"><h3>Not on the list?</h3><input id="cn" placeholder="What was it?" style="margin:8px 0"><div class="row"><input id="ck" type="number" inputmode="numeric" placeholder="kcal"><input id="cp" type="number" inputmode="decimal" placeholder="protein g"></div><label class="row"><input type="checkbox" id="cr" style="width:auto" checked> Remember it</label><button class="btn" style="margin-top:8px" data-a="addc">Add</button></div></div>`}
+const fl=L=>L.slice(0,40).map(f=>`<div class="ent row"><span>${f.e}</span><div class="g"><div>${esc(f.n)}</div><div class="sm mut">${f.s} · ${Math.round(f.p*10)/10} g protein</div></div><span class="mut">${Math.round(f.k*qty)}</span><button class="btn soft" data-a="add" data-id="${f.id}">＋</button></div>`).join('');
+// ---- actions
+function render(){const a=$('#app'),t=document.querySelector('.tabs');if(!S.p||editing){t.style.display='none';a.innerHTML=vOnb();return}t.style.display='flex';a.innerHTML={today:vToday,eat:vEat,prog:vProg,me:vMe}[tab]();document.querySelectorAll('.tabs button').forEach(b=>b.classList.toggle('on',b.dataset.t==tab))}
+function rs(){const s=$('#sheet');if(!sheet){s.style.display='none';return}s.style.display='flex';s.innerHTML=vSheet()}
+function addE(f,m,n){const x={id:Date.now()+Math.random(),n:f.n,e:f.e,k:Math.round(f.k*n),p:Math.round(f.p*n*10)/10,m,q:n};day(cur).e.push(x);save()}
+const A={tab:d=>{tab=d.t;scrollTo(0,0);render()},nav:d=>{const n=addD(cur,+d.v);if(n<=dk()){cur=n;render()}},
+ou:d=>{ob.u=d.v;keep();render()},os:d=>{ob.s=d.v;keep();render()},
+start:()=>{const g=i=>parseFloat($('#'+i).value),imp=ob.u=='imp',h=imp?(g('ft')*12+(g('in')||0))*2.54:g('cm'),w=imp?g('w')/2.20462:g('w'),gw=imp?g('gw')/2.20462:g('gw'),a=g('age');
+if(!(h>120&&h<230&&w>35&&w<300&&gw>35&&gw<300&&a>=18&&a<100)){toast('Something looks off — check the numbers (adults 18+)');return}
+S.p={name:$('#nm').value.trim(),s:ob.s,a,h,w,gw,act:+$('#ac').value,rate:+$('#rt').value,u:ob.u,adj:(S.p&&S.p.adj)||0};if(!Object.keys(S.wt).length)S.wt[dk()]=w;editing=false;save();render()},
+edit:()=>{ob={s:S.p.s,u:S.p.u};editing=true;render()},units:d=>{S.p.u=d.v;save();render()},
+open:d=>{sheet={m:d.m};q='';qty=1;rs()},close:()=>{sheet=null;rs();render()},qty:d=>{qty=Math.max(.5,qty+ +d.v);$('#qv').textContent='×'+qty;$('#q').dispatchEvent(new Event('input'))},
+add:d=>{addE(food(d.id),sheet.m,qty);toast('Added ✓')},
+addc:()=>{const n=$('#cn').value.trim(),k=+$('#ck').value,p=+$('#cp').value||0;if(!n||!(k>=0)||!$('#ck').value){toast('Need a name and calories');return}const f={n,e:'🍽️',k,p,s:'1 serving',t:'x',m:'blds'};if($('#cr').checked)S.cust.push({n,k,p,s:'1 serving',t:'x',m:'blds'});addE(f,sheet.m,1);toast('Added ✓');$('#cn').value=$('#ck').value=$('#cp').value=''},
+del:d=>{const D=day(cur);D.e=D.e.filter(x=>String(x.id)!=d.id);save();render()},
+water:d=>{const D=day(cur),n=+d.i+1;D.w=D.w==n?n-1:n;save();render()},
+wsave:()=>{const v=parseFloat($('#wi').value);if(!(v>0))return;const kg=S.p.u=='imp'?v/2.20462:v;if(kg<30||kg>300){toast('That doesn’t look right');return}S.wt[cur]=kg;save();toast('Logged ✓');render()},
+log:d=>{(IC[d.s][d.i]||[]).forEach(f=>addE(f,d.s,1));toast('Logged ✓');render()},
+adj:d=>{S.p.adj=(S.p.adj||0)+ +d.v;save();toast('Target updated');render()},
+export:()=>{const t=JSON.stringify(S);$('#bk').value=t;try{navigator.clipboard.writeText(t).then(()=>toast('Copied ✓'))}catch(e){$('#bk').select()}},
+import:()=>{try{const o=JSON.parse($('#bk').value);if(!o.p||!o.days)throw 0;S=o;save();toast('Restored ✓');render()}catch(e){toast('That doesn’t look like a backup')}},
+reset:()=>{if(confirm('Erase everything on this phone? This can’t be undone.')){localStorage.removeItem(KEY);S={p:null,days:{},wt:{},cust:[]};ob={s:'f',u:'imp'};render()}}};
+function keep(){const p=S.p||(S.p=null);}
+document.addEventListener('click',e=>{const t=e.target.closest('[data-a]');if(t&&A[t.dataset.a])A[t.dataset.a](t.dataset)});
+document.addEventListener('input',e=>{if(e.target.id=='q'){q=e.target.value;const L=[...S.cust.map((c,i)=>({...c,id:'c'+i,e:'⭐'})),...F].filter(f=>!q||(f.n+f.s).toLowerCase().includes(q.toLowerCase())).sort((a,b)=>(b.m.includes(sheet.m)-a.m.includes(sheet.m)));$('#fl').innerHTML=fl(L)}});
+if(S.p)ob={s:S.p.s,u:S.p.u};render();
+if('serviceWorker' in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('sw.js').catch(()=>{});
+</script></body></html>
