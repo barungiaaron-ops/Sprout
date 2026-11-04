@@ -44,7 +44,7 @@ const dk=d=>{d=d||new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).p
 const dd=s=>new Date(s+'T12:00'),addD=(s,n)=>{const d=dd(s);d.setDate(d.getDate()+n);return dk(d)};
 const fmtD=s=>dd(s).toLocaleDateString(undefined,{month:'short',day:'numeric'});
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-let cur=dk(),tab='today',editing=false,ob={s:'f',u:'imp'},sheet=null,qty=1,q='',IC={};
+let pd=null,pr=null,cur=dk(),tab='today',editing=false,ob={s:'f',u:'imp'},sheet=null,qty=1,q='',IC={};
 const toast=t=>{const e=$('#toast');e.textContent=t;e.classList.add('on');clearTimeout(toast.t);toast.t=setTimeout(()=>e.classList.remove('on'),1800)};
 // food data: emoji,name,serving,kcal,protein,type(p/c/v/f),meals(b,l,d,s). Approximate USDA-style values.
 const F=[['🥚','Eggs','2 large',144,12,'p','b'],['🥣','Greek yogurt, nonfat','1 cup',130,23,'p','bs'],['🍗','Chicken breast','4 oz cooked',187,35,'p','ld'],['🐟','Salmon','5 oz cooked',290,31,'p','d'],['🥫','Tuna pouch','1 pouch',70,16,'p','ls'],['🥩','Lean ground beef 93%','4 oz cooked',220,26,'p','d'],['🍤','Shrimp','4 oz',112,23,'p','ld'],['🧀','Cottage cheese, low-fat','½ cup',90,12,'p','bs'],['🥛','Whey protein','1 scoop',120,24,'p','bs'],['🦃','Turkey slices','3 oz',90,15,'p','l'],['🧈','Tofu, firm','4 oz',90,10,'p','ld'],['🧀','String cheese','1 stick',80,7,'p','s'],
@@ -119,7 +119,7 @@ function vMe(){const P=pl(),p=S.p;return`<h1>Me</h1><div class="card"><h3>How yo
 function vSheet(){const L=[...S.cust.map((c,i)=>({...c,id:'c'+i,e:'⭐'})),...F].filter(f=>!q||(f.n+f.s).toLowerCase().includes(q.toLowerCase())).sort((a,b)=>(b.m.includes(sheet.m)-a.m.includes(sheet.m)));
 return`<div><div class="row sp"><h3>Add to ${MEALS.find(x=>x[0]==sheet.m)[1]}</h3><button class="btn soft" data-a="close">Done</button></div><div class="row" style="margin:10px 0"><input id="q" placeholder="Search foods…" value="${esc(q)}" autocomplete="off"><span class="row"><button class="pill" data-a="qty" data-v="-.5">−</button><b id="qv">×${qty}</b><button class="pill" data-a="qty" data-v=".5">＋</button></span></div><div id="fl">${fl(L)}</div>
 <div class="card stitch"><h3>Not on the list?</h3><input id="cn" placeholder="What was it?" style="margin:8px 0"><div class="row"><input id="ck" type="number" inputmode="numeric" placeholder="kcal"><input id="cp" type="number" inputmode="decimal" placeholder="protein g"></div><label class="row"><input type="checkbox" id="cr" style="width:auto" checked> Remember it</label><button class="btn" style="margin-top:8px" data-a="addc">Add</button></div></div>`}
-const fl=L=>L.slice(0,40).map(f=>`<div class="ent row"><span>${f.e}</span><div class="g"><div>${esc(f.n)}</div><div class="sm mut">${f.s} · ${Math.round(f.p*10)/10} g protein</div></div><span class="mut">${Math.round(f.k*qty)}</span>${f.id[0]=='c'?`<button class="x" data-a="delc" data-id="${f.id}" aria-label="Remove saved food">🗑</button>`:''}<button class="btn soft" data-a="add" data-id="${f.id}">＋</button></div>`).join('');
+const fl=L=>L.slice(0,40).map(f=>`<div class="ent row"><span>${f.e}</span><div class="g"><div>${esc(f.n)}</div><div class="sm mut">${f.s} · ${Math.round(f.p*10)/10} g protein</div></div><span class="mut">${Math.round(f.k*qty)}</span>${f.id[0]=='c'?`<button class="x" data-a="delc" data-id="${f.id}" aria-label="Remove saved food" style="${pd==f.id?'color:var(--terra);font-size:14px;font-weight:700':''}">${pd==f.id?'Remove?':'🗑'}</button>`:''}<button class="btn soft" data-a="add" data-id="${f.id}">＋</button></div>`).join('');
 // ---- actions
 function render(){const a=$('#app'),t=document.querySelector('.tabs');if(!S.p||editing){t.style.display='none';a.innerHTML=vOnb();return}t.style.display='flex';a.innerHTML={today:vToday,eat:vEat,prog:vProg,me:vMe}[tab]();document.querySelectorAll('.tabs button').forEach(b=>b.classList.toggle('on',b.dataset.t==tab))}
 function rs(){const s=$('#sheet');if(!sheet){s.style.display='none';return}s.style.display='flex';s.innerHTML=vSheet()}
@@ -133,7 +133,7 @@ edit:()=>{ob={s:S.p.s,u:S.p.u};editing=true;render()},units:d=>{S.p.u=d.v;save()
 open:d=>{sheet={m:d.m};q='';qty=1;rs()},close:()=>{sheet=null;rs();render()},qty:d=>{qty=Math.max(.5,qty+ +d.v);$('#qv').textContent='×'+qty;$('#q').dispatchEvent(new Event('input'))},
 add:d=>{addE(food(d.id),sheet.m,qty);toast('Added ✓')},
 addc:()=>{const n=$('#cn').value.trim(),k=+$('#ck').value,p=+$('#cp').value||0;if(!n||!(k>=0)||!$('#ck').value){toast('Need a name and calories');return}const f={n,e:'🍽️',k,p,s:'1 serving',t:'x',m:'blds'};if($('#cr').checked)S.cust.push({n,k,p,s:'1 serving',t:'x',m:'blds'});addE(f,sheet.m,1);toast('Added ✓');$('#cn').value=$('#ck').value=$('#cp').value=''},
-delc:d=>{const i=+d.id.slice(1),f=S.cust[i];if(f&&confirm(`Remove “${f.n}” from your saved foods? Meals you’ve already logged stay as they are.`)){S.cust.splice(i,1);save();rs();toast('Removed')}},
+delc:d=>{if(pd!==d.id){pd=d.id;clearTimeout(A.t);A.t=setTimeout(()=>{pd=null;if(sheet)rs()},3000);rs();return}const k=+d.id.slice(1);S.cust.splice(k,1);pd=null;save();rs();toast('Removed')},
 del:d=>{const D=day(cur);D.e=D.e.filter(x=>String(x.id)!=d.id);save();render()},
 water:d=>{const D=day(cur),n=+d.i+1;D.w=D.w==n?n-1:n;save();render()},
 wsave:()=>{const v=parseFloat($('#wi').value);if(!(v>0))return;const kg=S.p.u=='imp'?v/2.20462:v;if(kg<30||kg>300){toast('That doesn’t look right');return}S.wt[cur]=kg;save();toast('Logged ✓');render()},
@@ -141,7 +141,7 @@ log:d=>{(IC[d.s][d.i]||[]).forEach(f=>addE(f,d.s,1));toast('Logged ✓');render(
 adj:d=>{S.p.adj=(S.p.adj||0)+ +d.v;save();toast('Target updated');render()},
 export:()=>{const t=JSON.stringify(S);$('#bk').value=t;try{navigator.clipboard.writeText(t).then(()=>toast('Copied ✓'))}catch(e){$('#bk').select()}},
 import:()=>{try{const o=JSON.parse($('#bk').value);if(!o.p||!o.days)throw 0;S=o;save();toast('Restored ✓');render()}catch(e){toast('That doesn’t look like a backup')}},
-reset:()=>{if(confirm('Erase everything on this phone? This can’t be undone.')){localStorage.removeItem(KEY);S={p:null,days:{},wt:{},cust:[]};ob={s:'f',u:'imp'};render()}}};
+reset:d=>{if(!pr){pr=1;d.t&&0;toast('Tap again to erase everything');setTimeout(()=>pr=null,3000);return}pr=null;localStorage.removeItem(KEY);S={p:null,days:{},wt:{},cust:[]};ob={s:'f',u:'imp'};render()}};
 function keep(){const p=S.p||(S.p=null);}
 document.addEventListener('click',e=>{const t=e.target.closest('[data-a]');if(t&&A[t.dataset.a])A[t.dataset.a](t.dataset)});
 document.addEventListener('input',e=>{if(e.target.id=='q'){q=e.target.value;const L=[...S.cust.map((c,i)=>({...c,id:'c'+i,e:'⭐'})),...F].filter(f=>!q||(f.n+f.s).toLowerCase().includes(q.toLowerCase())).sort((a,b)=>(b.m.includes(sheet.m)-a.m.includes(sheet.m)));$('#fl').innerHTML=fl(L)}});
